@@ -1,0 +1,69 @@
+#!/bin/bash
+
+# Before using kinst you need to compile kernel via kmake and create nfs share via nfs-export-dir.sh
+
+if [ "$#" -ne 1 ] && [ "$#" -ne 2 ]; then
+	echo "Usage: $0 <nfs_share> [mount_path]"
+	echo ""
+	echo "The <nfs-share> argument should point to your nfs share."
+	echo "The format is the same as when you mount nfs. Nfs should"
+	echo "contain pre-build kernel ready to be installed."
+	echo ""
+	echo "The [mount_path] argument is optional advisory on where"
+	echo "to create local temporary directories."
+	echo ""
+	echo "Example usage: $0 lupus.ch-qa.sw.ru:/vz/build/vzkernel-vz9"
+	exit 1
+fi
+
+REMKERNPATH="$1"
+KDIRNAME=$(basename $REMKERNPATH)
+LOCDIRPATH="${LOCDIRPATH:-/}"
+if [ "$#" -eq 2 ]; then
+	LOCDIRPATH="$2"
+fi
+LOCKERNPATH="$LOCDIRPATH/$KDIRNAME"
+
+# Likely there is no gcc on current node - fix it
+rpm -q gcc || { echo "Installing gcc"; yum install -y gcc; }
+# Likely there is no elfutils-libelf-devel ion current node - fix it
+rpm -q elfutils-libelf-devel || { echo "Installing elfutils-libelf-devel"; yum install -y elfutils-libelf-devel; }
+
+# Mount NFS
+[ -d "$LOCDIRPATH" ] || mkdir $LOCDIRPATH
+[ -d "$LOCKERNPATH" ] || mkdir $LOCKERNPATH
+echo "Mounting nfs to $LOCKERNPATH"
+mount $REMKERNPATH $LOCKERNPATH
+
+# Likely you nfs share is readonly, else someone can accidentaly change it.
+# So we do overlayfs trick here to make kernel directory appear writable as
+# make modules_install install would need to write into it.
+echo "Mounting overlay to $LOCKERNPATH-overlay"
+mkdir $LOCKERNPATH-{upper,work,overlay}
+mount -t overlay overlay -olowerdir=$LOCKERNPATH,upperdir=$LOCKERNPATH-upper,workdir=$LOCKERNPATH-work $LOCKERNPATH-overlay
+cd $LOCKERNPATH-overlay
+
+# Disable useless rescue image (this makes installing much faster)
+RESCUEPATH="/usr/lib/dracut/dracut.conf.d/02-rescue.conf"
+if grep 'dracut_rescue_image="yes"' $RESCUEPATH &>/dev/null; then
+	echo "Disabling rescue image"
+	sed -i 's/dracut_rescue_image="yes"/dracut_rescue_image="no"/' $RESCUEPATH
+fi
+
+echo "Installing the kernel"
+make modules_install install
+
+echo "Setting up grub to reboot in new kernel once"
+if [ -e "/boot/loader" ]; then
+	echo "New grub"
+	grub2-reboot "$(ls /boot/loader/entries/ -rt | tail -n1 | sed 's/\.conf$//')"
+else
+	echo "Old grub"
+	grub2-reboot "'$(cat /boot/grub2/grub.cfg | grep '^menu' | head -1 | awk -F"'" '{print $2}')'"
+fi
+
+echo "Cleanup mounts and directories"
+cd -
+umount $LOCKERNPATH-overlay
+rm -rf $LOCKERNPATH-{upper,work,overlay}
+umount $LOCKERNPATH

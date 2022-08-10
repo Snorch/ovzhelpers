@@ -1,0 +1,7 @@
+#!/bin/bash
+
+# Makes the kernel and strips debuginfo for faster install and smaller initramfs
+
+NTHREADS=$(($(nproc)+1))
+echo "-kmake" > .scmversion
+make -j$NTHREADS && modstrip

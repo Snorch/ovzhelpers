@@ -1,0 +1,20 @@
+#!/bin/bash
+
+# Creates simple fair sized Virtuozzo VM, which allows nested containers with veth network
+
+if [ $# -ne 2 ]; then
+	echo "usage: $0 <vm_name> <cd_path>"
+	exit 1
+fi
+VENAME=$1
+CDPATH=$2
+
+prlctl create $VENAME --distribution centos7 --vmtype vm
+prlctl set $VENAME --memsize 4G
+prlctl set $VENAME --device-set hdd0 --size 150G
+prlctl set $VENAME --device-set cdrom0 --image $CDPATH --connect
+prlctl set $VENAME --vnc-mode auto --vnc-nopasswd
+prlctl set $VENAME --device-bootorder "cdrom0 hdd0 net0"
+
+# To run routed CT's inside vm, disable network filtering
+prlctl set $VENAME --device-set net0 --ipfilter no --macfilter no --preventpromisc no

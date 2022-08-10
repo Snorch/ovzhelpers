@@ -1,0 +1,42 @@
+#!/bin/bash
+
+# Creates simple fair sized Virtuozzo Container with veth network
+
+MEM=512M
+OSTEMPLATE="${OSTEMPLATE:-centos-7-x86_64}"
+
+function check_err {
+        if [ $1 -ne 0 ]; then
+                echo "ERROR: $2"
+                exit 1
+        fi
+}
+
+if [ "$#" -ne 2 ]; then
+	echo "usage: $0 <ct_name> <password>"
+        exit 1
+fi
+VENAME=$1
+PASSWORD=$2
+
+GATEWAY=$(ip route | grep default | head -1 | awk '{print $3}')
+NAMESERVER=$(cat /etc/resolv.conf | grep nameserver | head -1 | awk '{print $2}')
+if [ -z "$GATEWAY" ] || [ -z "$NAMESERVER" ]; then
+	echo "Bad network"
+	exit 1
+fi
+
+prlctl create $VENAME --ostemplate $OSTEMPLATE --vmtype ct
+check_err $? "Failed to create container ostemplate=$OSTEMPLATE"
+prlctl set $VENAME --userpasswd root:$PASSWORD
+check_err $? "Failed to set passwd"
+prlctl set $VENAME --memsize $MEM
+check_err $? "Failed to set physpages"
+
+prlctl set $VENAME --netif_add eth0
+check_err $? "Failed to add veth netif"
+prlctl set $VENAME --ifname eth0 --dhcp yes --network Bridged --nameserver $NAMESERVER --gw $GATEWAY
+check_err $? "Failed to setup netif"
+
+prlctl set $VENAME --autostart off
+check_err $? "Failed to disable autostart"

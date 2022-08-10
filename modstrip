@@ -1,0 +1,5 @@
+#!/bin/bash
+
+# Strips debuginfo from modules
+
+for mod in $(find . -iname "*.ko"); do eu-strip --remove-comment --reloc-debug-sections -f $mod{.debug,}; done
