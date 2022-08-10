@@ -1,0 +1,10 @@
+#!/bin/bash
+
+docker build -t rhel9toolchain - <<EOF
+FROM fedora:35
+RUN dnf -y install git flex bison make gcc findutils openssl-devel bc diffutils elfutils elfutils-devel perl vim openssl dwarves cpio xz
+RUN yum clean all
+RUN git clone https://github.com/Snorch/ovzhelpers.git && cd ovzhelpers && ./install.sh
+EOF
+
+docker run -it --rm --network=host -v $PWD:/vzkernel rhel9toolchain bash -i -c "cd /vzkernel && kmake && echo '>>> SUCCESS <<<'"

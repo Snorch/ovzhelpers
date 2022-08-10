@@ -1,0 +1,5 @@
+#!/bin/bash
+
+# Create .config for Virtuozzo 9
+
+cd redhat/configs/ && ./build_configs.sh kernel x86_64 rhel && cd ../../ && /usr/bin/cp -f redhat/configs/kernel-x86_64-rhel.config ./.config
