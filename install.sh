@@ -14,5 +14,3 @@ cp nfs-export-dir.sh ~/bin
 cp build-vz7 ~/bin
 cp rh-conf ~/bin
 cp build-vz9 ~/bin
-
-echo "export PATH=\"$HOME/bin:$PATH\"" > ~/.bashrc
