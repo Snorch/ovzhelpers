@@ -2,4 +2,4 @@
 
 # Create .config for Virtuozzo 9
 
-cd redhat/configs/ && ./build_configs.sh kernel x86_64 rhel && cd ../../ && /usr/bin/cp -f redhat/configs/kernel-x86_64-rhel.config ./.config
+cd redhat/configs/ && ARCH_MACH=x86_64 ./build_configs.sh kernel rhel && cd ../../ && /usr/bin/cp -f redhat/configs/kernel-x86_64-rhel.config ./.config
