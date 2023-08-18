@@ -4,17 +4,18 @@
 
 MEM=512M
 OSTEMPLATE="${OSTEMPLATE:-centos-7-x86_64}"
+VZCMD="${VZCMD:-vzctl}"
 
 function check_err {
-        if [ $1 -ne 0 ]; then
-                echo "ERROR: $2"
-                exit 1
-        fi
+	if [ $1 -ne 0 ]; then
+		echo "ERROR: $2"
+		exit 1
+	fi
 }
 
 if [ "$#" -ne 2 ]; then
 	echo "usage: $0 <ct_name> <password>"
-        exit 1
+	exit 1
 fi
 VENAME=$1
 PASSWORD=$2
@@ -26,17 +27,35 @@ if [ -z "$GATEWAY" ] || [ -z "$NAMESERVER" ]; then
 	exit 1
 fi
 
-prlctl create $VENAME --ostemplate $OSTEMPLATE --vmtype ct
-check_err $? "Failed to create container ostemplate=$OSTEMPLATE"
-prlctl set $VENAME --userpasswd root:$PASSWORD
-check_err $? "Failed to set passwd"
-prlctl set $VENAME --memsize $MEM
-check_err $? "Failed to set physpages"
+if [ "$VZCMD" == "vzctl" ]; then
+	VEUUID=$(uuidgen)
+	vzctl create $VEUUID --ostemplate $OSTEMPLATE --name $VENAME
+	check_err $? "Failed to create container ostemplate=$OSTEMPLATE"
+	vzctl set $VENAME --userpasswd root:$PASSWORD --save
+	check_err $? "Failed to set passwd"
+	vzctl set $VENAME --ram $MEM --save
+	check_err $? "Failed to set physpages"
 
-prlctl set $VENAME --netif_add eth0
-check_err $? "Failed to add veth netif"
-prlctl set $VENAME --ifname eth0 --dhcp yes --network Bridged --nameserver $NAMESERVER --gw $GATEWAY
-check_err $? "Failed to setup netif"
+	vzctl set $VENAME --netif_add eth0 --save
+	check_err $? "Failed to add veth netif"
+	vzctl set $VENAME --ifname eth0 --dhcp yes --network Bridged --nameserver $NAMESERVER --gw $GATEWAY --save
+	check_err $? "Failed to setup netif"
 
-prlctl set $VENAME --autostart off
-check_err $? "Failed to disable autostart"
+	vzctl set $VENAME --onboot no --save
+	check_err $? "Failed to disable autostart"
+elif [ "$VZCMD" == "prlctl" ]; then
+	prlctl create $VENAME --ostemplate $OSTEMPLATE --vmtype ct
+	check_err $? "Failed to create container ostemplate=$OSTEMPLATE"
+	prlctl set $VENAME --userpasswd root:$PASSWORD
+	check_err $? "Failed to set passwd"
+	prlctl set $VENAME --memsize $MEM
+	check_err $? "Failed to set physpages"
+
+	prlctl set $VENAME --netif_add eth0
+	check_err $? "Failed to add veth netif"
+	prlctl set $VENAME --ifname eth0 --dhcp yes --network Bridged --nameserver $NAMESERVER --gw $GATEWAY
+	check_err $? "Failed to setup netif"
+
+	prlctl set $VENAME --autostart off
+	check_err $? "Failed to disable autostart"
+fi
