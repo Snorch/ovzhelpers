@@ -2,4 +2,7 @@
 
 # Strips debuginfo from modules
 
-for mod in $(find . -iname "*.ko"); do eu-strip --remove-comment --reloc-debug-sections -f $mod{.debug,}; done
+for mod in $(find . -iname "*.ko"); do
+	eu-strip --remove-comment --keep-section=".BTF" \
+		 --reloc-debug-sections -f $mod{.debug,}
+done
