@@ -23,4 +23,4 @@ RUN yum clean all
 RUN git clone https://github.com/Snorch/ovzhelpers.git && cd ovzhelpers && ./install.sh
 EOF
 
-docker run -it --rm --network=host -v $PWD:/vzkernel rhel9toolchain bash -i -c "cd /vzkernel && kmake && echo '>>> SUCCESS <<<'"
+docker run -it --rm --network=host -v $PWD:/vzkernel rhel9toolchain bash -i -c "cd /vzkernel && kmake $1 && echo '>>> SUCCESS <<<'"
