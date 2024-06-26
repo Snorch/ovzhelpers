@@ -28,6 +28,8 @@ LOCKERNPATH="$LOCDIRPATH/$KDIRNAME"
 rpm -q gcc || { echo "Installing gcc"; yum install -y gcc; }
 # Likely there is no elfutils-libelf-devel ion current node - fix it
 rpm -q elfutils-libelf-devel || { echo "Installing elfutils-libelf-devel"; yum install -y elfutils-libelf-devel; }
+# Likely there is not nfs-utils on current node - fix it
+rpm -q nfs-utils || { echo "Installing nfs-utils"; yum install -y nfs-utils; }
 
 # Mount NFS
 [ -d "$LOCDIRPATH" ] || mkdir $LOCDIRPATH
