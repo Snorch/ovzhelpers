@@ -1,0 +1,24 @@
+#!/bin/bash
+#
+# note: virtuozzo9:latest docker image should be prepared in advance with preinstalled:
+#
+# RUN dnf -y install WALinuxAgent-cvm pesign xmlto
+# RUN dnf -y install vzlinux-sb-certs
+
+docker build -t rpmbuild-toolchain - <<EOF
+FROM virtuozzo9:latest
+RUN dnf -y install git
+RUN dnf -y install asciidoc audit-libs-devel bash bc binutils binutils-devel bison bzip2 coreutils diffutils dracut dwarves elfutils elfutils-devel findutils flex gawk gcc gcc-c++ gcc-plugin-devel gettext git-core glibc-static gzip libkcapi-hmaccalc hostname kernel-rpm-macros kmod libcap-devel libnl3-devel lvm2 m4 make ncurses-devel net-tools newt-devel nss-tools openssl openssl-devel perl-ExtUtils-Embed perl-Carp perl-devel perl-generators perl-interpreter python3-devel python3-docutils python3-setuptools redhat-rpm-config rpm-build rsync systemd-boot-unsigned systemd-udev tar tpm2-tools which xz xz-devel zlib-devel
+RUN yum clean all
+ENV PATH="${PATH}:/root/bin"
+RUN git clone https://github.com/Snorch/ovzhelpers.git && cd ovzhelpers && ./install.sh
+EOF
+
+SRCRPM="$1"
+PATCH="$2"
+
+rm -rf RPMS SOURCES SPECS BUILD BUILDROOT SPECS SRPMS log
+
+docker run -d --rm --network=host -v $PWD:/root/rpmbuild rpmbuild-toolchain bash -i -c "cd /root/rpmbuild && rpm -ihv $SRCRPM && dnf builddep -y SPECS/kernel.spec && cp $PATCH SOURCES/ && sed -i 's/\(^%define buildid.*$\)/\1.rpmbuild/;s/\(^Patch04.*$\)/\1\nPatch05: $PATCH/;s/\(^ApplyPatch.*ovz_patch_00.*$\)/\1\nApplyPatch $PATCH/' SPECS/kernel.spec && rpmbuild -v -ba SPECS/kernel.spec --target=x86_64 --without debug --without headers --without debuginfo --without bpftool --without tools --without perf 1>>log 2>&1 && echo 'kernel OOOOOOOOOOOOOKKKKKKKKKKKKK' >>log"
+
+sleep 1 && tail -f log && echo '>>> SUCCESS <<<'
