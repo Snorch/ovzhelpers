@@ -1,5 +1,32 @@
 #!/bin/bash
-#
+BUILDID="custom"
+
+usage() {
+	echo "usage: $0 [-b <buildid>] [-c <config>] [-p <patch>] <srcrpm>" 1>&2
+}
+
+optspec=":p:c:b:"
+while getopts "$optspec" optchar; do
+	case "${optchar}" in
+		b)
+			BUILDID="${OPTARG}"
+			;;
+		c)
+			CONFIG="${OPTARG}"
+			;;
+		p)
+			PATCH="${OPTARG}"
+			;;
+	esac
+done
+shift "$((OPTIND-1))"
+SRCRPM="$1"
+
+if [ -z "$SRCRPM" ]; then
+	usage
+	exit 1
+fi
+
 # note: virtuozzo9:latest docker image should be prepared in advance with preinstalled:
 #
 # RUN dnf -y install WALinuxAgent-cvm pesign xmlto
@@ -14,11 +41,27 @@ ENV PATH="${PATH}:/root/bin"
 RUN git clone https://github.com/Snorch/ovzhelpers.git && cd ovzhelpers && ./install.sh
 EOF
 
-SRCRPM="$1"
-PATCH="$2"
-
 rm -rf RPMS SOURCES SPECS BUILD BUILDROOT SPECS SRPMS log
+touch log
 
-docker run -d --rm --network=host -v $PWD:/root/rpmbuild rpmbuild-toolchain bash -i -c "cd /root/rpmbuild && rpm -ihv $SRCRPM && dnf builddep -y SPECS/kernel.spec && cp $PATCH SOURCES/ && sed -i 's/\(^%define buildid.*$\)/\1.rpmbuild/;s/\(^Patch04.*$\)/\1\nPatch05: $PATCH/;s/\(^ApplyPatch.*ovz_patch_00.*$\)/\1\nApplyPatch $PATCH/' SPECS/kernel.spec && rpmbuild -v -ba SPECS/kernel.spec --target=x86_64 --without debug --without headers --without debuginfo --without bpftool --without tools --without perf 1>>log 2>&1 && echo 'kernel OOOOOOOOOOOOOKKKKKKKKKKKKK' >>log"
+docker run -d --rm --network=host -v $PWD:/root/rpmbuild rpmbuild-toolchain bash -c "
+set -e
 
-sleep 1 && tail -f log && echo '>>> SUCCESS <<<'
+cd /root/rpmbuild
+rpm -ihv $SRCRPM
+dnf builddep -y SPECS/kernel.spec
+
+sed -i 's/\(^%define buildid.*$\)/\1.$BUILDID/' SPECS/kernel.spec
+
+if [ -n '$CONFIG' ]; then
+	cp $CONFIG SOURCES/kernel-x86_64-rhel.config
+fi
+
+if [ -n '$PATCH' ]; then
+	cp $PATCH SOURCES/
+	sed -i 's/\(^Patch04.*$\)/\1\nPatch  05: $PATCH/;s/\(^ApplyPatch.*ovz_patch_00.*$\)/\1\nApplyPatch $PATCH/' SPECS/kernel.spec
+fi
+
+rpmbuild -v -ba SPECS/kernel.spec --target=x86_64 --without debug --without headers --without debuginfo --without bpftool --without tools --without perf 1>>log 2>&1 && echo 'kernel OOOOOOOOOOOOOKKKKKKKKKKKKK' >>log"
+
+tail -f log && echo '>>> SUCCESS <<<'
