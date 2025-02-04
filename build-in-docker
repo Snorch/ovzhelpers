@@ -1,0 +1,36 @@
+#!/bin/bash
+
+# The main idea of this script is to be able to get a build environment
+# without littering your local system with build dependencies. You should be
+# in the root of package source directory before calling this script.
+#
+# for instance for CRIU you can:
+# git clone https://github.com:checkpoint-restore/criu.git
+# cd criu
+# build-in-docker criu
+# make
+
+if [ "$#" -ne 1 ]; then
+	echo "usage: $0 <package_name>"
+	exit 1
+fi
+PACKAGE_NAME=$1
+IMAGE_NAME="fedora_build_environment_$PACKAGE_NAME"
+
+sudo docker build -t $IMAGE_NAME - <<EOF
+FROM fedora:latest
+RUN dnf install -y bash git which
+RUN dnf install -y glibc-static
+RUN dnf install -y 'dnf-command(builddep)'
+RUN dnf builddep -y $PACKAGE_NAME
+
+# CRIU extra packages
+RUN dnf install -y libaio-devel python3-PyYAML libuuid-devel
+
+RUN yum clean all
+EOF
+
+sudo docker run -it --rm --user "$(id -u):$(id -g)" --network=host \
+	-v "$PWD:/${PWD##*/}" \
+	-w "/${PWD##*/}" \
+	$IMAGE_NAME bash
