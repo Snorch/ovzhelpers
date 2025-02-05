@@ -7,7 +7,7 @@ if ! grep "CONFIG_LOCALVERSION_AUTO=y" .config &>/dev/null; then
 	sed -i 's/# CONFIG_LOCALVERSION_AUTO is not set/CONFIG_LOCALVERSION_AUTO=y/' .config
 fi
 
-SUBNAME="${1:--kmake}"
+SUBNAME="-${1:-kmake}"
 echo "$SUBNAME" > .scmversion
 
 # Makes the kernel and strips debuginfo for faster install and smaller initramfs
