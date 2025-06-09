@@ -1,0 +1,27 @@
+#!/bin/bash
+
+sudo docker build -t kernel-build-toolchain - <<EOF
+FROM fedora:latest
+RUN dnf -y install kmod bash coreutils tar git which
+RUN dnf -y install bzip2 xz findutils gzip m4 perl make diffutils gawk
+RUN dnf -y install gcc binutils redhat-rpm-config hmaccalc bison flex gcc-c++
+RUN dnf -y install net-tools hostname bc
+RUN dnf -y install elfutils elfutils-devel
+RUN dnf -y install dwarves
+RUN dnf -y install python3-devel
+RUN dnf -y install gcc-plugin-devel
+RUN dnf -y install kernel-rpm-macros
+RUN dnf -y install rsync
+RUN dnf -y install glibc-static
+RUN dnf -y install libbpf-devel
+RUN dnf -y install libnl3-devel
+RUN dnf -y install openssl openssl-devel
+RUN dnf -y install lld
+RUN dnf -y install rpm-build
+RUN dnf -y install cpio xz
+RUN dnf -y install ccache
+RUN yum clean all
+RUN git clone https://github.com/Snorch/ovzhelpers.git && cd ovzhelpers && ./install.sh
+EOF
+
+sudo docker run -it --rm --network=host -v $PWD:/kernel -v /vz/.ccache:/root/.ccache kernel-build-toolchain bash -i -c "PATH=\"/usr/lib64/ccache:\$PATH\" && cd /kernel && kmake $1 && echo '>>> SUCCESS <<<'"
