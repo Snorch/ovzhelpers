@@ -67,5 +67,11 @@ fi
 echo "Cleanup mounts and directories"
 cd -
 umount $LOCKERNPATH-overlay
-rm -rf $LOCKERNPATH-{upper,work,overlay}
+rm -rf $LOCKERNPATH-{upper,work}
 umount $LOCKERNPATH
+
+echo "To be able to debug (e.g. perf) the kernel you would need to run (after reboot):"
+echo "  mount $REMKERNPATH $LOCKERNPATH-overlay"
+echo "  ln -s $LOCKERNPATH-overlay /vzkernel"
+echo "  mkdir -p /usr/lib/debug/usr/lib/modules/\$(uname -r)/"
+echo "  ln -s $LOCKERNPATH-overlay /usr/lib/debug/usr/lib/modules/\$(uname -r)/kernel"
