@@ -24,4 +24,4 @@ RUN yum clean all
 RUN git clone https://github.com/Snorch/ovzhelpers.git && cd ovzhelpers && ./install.sh
 EOF
 
-sudo docker run -it --rm --network=host -v $PWD:/kernel -v /vz/.ccache:/root/.ccache kernel-build-toolchain bash -i -c "PATH=\"/usr/lib64/ccache:\$PATH\" && cd /kernel && kmake $1 && echo '>>> SUCCESS <<<'"
+sudo docker run -it --rm --network=host -v $PWD:/kernel -v ~/.ccache:/root/.ccache kernel-build-toolchain bash -i -c "PATH=\"/usr/lib64/ccache:\$PATH\" && cd /kernel && kmake $1 && echo '>>> SUCCESS <<<'"
