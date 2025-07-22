@@ -22,6 +22,7 @@ RUN dnf -y install cpio xz
 RUN dnf -y install ccache
 RUN yum clean all
 RUN git clone https://github.com/Snorch/ovzhelpers.git && cd ovzhelpers && ./install.sh
+RUN echo "PATH=\"/root/bin:/usr/lib64/ccache:\$PATH\"" >> /root/.bashrc
 EOF
 
-sudo docker run -it --rm --network=host -v $PWD:/kernel -v ~/.ccache:/root/.ccache kernel-build-toolchain bash -i -c "PATH=\"/usr/lib64/ccache:\$PATH\" && cd /kernel && kmake $1 && echo '>>> SUCCESS <<<'"
+sudo docker run -it --rm --network=host -v $PWD:/kernel -v ~/.ccache:/root/.ccache kernel-build-toolchain bash -i -c "cd /kernel && kmake $1 && echo '>>> SUCCESS <<<'"
