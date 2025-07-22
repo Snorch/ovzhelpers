@@ -16,3 +16,4 @@ cp rh-conf ~/bin
 cp build-vz9 ~/bin
 cp rpmbuild-vz9 ~/bin
 cp build-in-docker ~/bin
+cp build-kernel ~/bin
