@@ -19,7 +19,7 @@ IMAGE_NAME="fedora_build_environment_$PACKAGE_NAME"
 
 sudo docker build -t $IMAGE_NAME - <<EOF
 FROM fedora:latest
-RUN dnf install -y bash git which
+RUN dnf install -y bash git which gawk
 RUN dnf install -y glibc-static
 RUN dnf install -y 'dnf-command(builddep)'
 RUN dnf builddep -y $PACKAGE_NAME
