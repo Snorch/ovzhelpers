@@ -52,15 +52,19 @@ if grep 'dracut_rescue_image="yes"' $RESCUEPATH &>/dev/null; then
 	sed -i 's/dracut_rescue_image="yes"/dracut_rescue_image="no"/' $RESCUEPATH
 fi
 
+OLDBOOT=$(sed -n 's/^saved_entry=\(.*\)$/\1/p' /boot/grub2/grubenv)
+
 echo "Installing the kernel"
 make modules_install install
 
 echo "Setting up grub to reboot in new kernel once"
 if [ -e "/boot/loader" ]; then
 	echo "New grub"
+	grub2-set-default $OLDBOOT
 	grub2-reboot "$(ls /boot/loader/entries/ -rt | tail -n1 | sed 's/\.conf$//')"
 else
 	echo "Old grub"
+	grub2-set-default $OLDBOOT
 	grub2-reboot "'$(cat /boot/grub2/grub.cfg | grep '^menu' | head -1 | awk -F"'" '{print $2}')'"
 fi
 
