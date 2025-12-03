@@ -2,12 +2,23 @@
 
 docker build -t rhel7toolchain - <<EOF
 FROM centos:7
+
+# Replace default CentOS-7 repo with Vault repo to avoid issues with EOL repos
+RUN echo '[base]' > /etc/yum.repos.d/CentOS-Base.repo
+RUN echo 'name=CentOS-\$releasever - Base' >> /etc/yum.repos.d/CentOS-Base.repo
+RUN echo 'baseurl=http://vault.centos.org/7.9.2009/os/x86_64/' >> /etc/yum.repos.d/CentOS-Base.repo
+
+RUN echo 'gpgcheck=1' >> /etc/yum.repos.d/CentOS-Base.repo
+RUN echo 'gpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-CentOS-7' >> /etc/yum.repos.d/CentOS-Base.repo
+RUN yum clean all
+
 # Perfomance: fix Delta RPMs disabled because /usr/bin/applydeltarpm not installed
 RUN yum -y install deltarpm
 # Perfomance: workaround https://github.com/docker/buildx/issues/379
 RUN echo "ulimit is $(ulimit -n)" && ulimit -n 1024000 && yum -y install git flex bison make gcc findutils openssl-devel bc diffutils elfutils elfutils-devel perl vim openssl dwarves sshpass openssh-clients
 RUN yum clean all
 RUN git clone https://github.com/Snorch/ovzhelpers.git && cd ovzhelpers && ./install.sh
+RUN echo "PATH=\"/root/bin:\$PATH\"" >> /root/.bashrc
 EOF
 
-docker run -it --rm --network=host -v $PWD:/vzkernel rhel7toolchain bash -i -c "cd /vzkernel && kmake $1 && echo '>>> SUCCESS <<<'"
+sudo docker run -it --rm --network=host -v $PWD:/kernel rhel7toolchain bash -i -c "cd /kernel && kmake $1 && echo '>>> SUCCESS <<<'"
