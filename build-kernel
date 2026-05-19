@@ -1,7 +1,14 @@
 #!/bin/bash
 
-sudo docker build -t kernel-build-toolchain - <<EOF
-FROM fedora:latest
+FEDORA_VERSION="latest"
+
+KERNEL_VERSION="$(make -s kernelversion | cut -d- -f1)"
+if [ "$(printf '%s\n5.14.0\n' "$KERNEL_VERSION" | sort -V | head -n1)" = "$KERNEL_VERSION" ]; then
+	FEDORA_VERSION="41"
+fi
+
+sudo docker build -t kernel-build-toolchain:${FEDORA_VERSION} - <<EOF
+FROM fedora:${FEDORA_VERSION}
 RUN dnf -y install kmod bash coreutils tar git which
 RUN dnf -y install bzip2 xz findutils gzip m4 perl make diffutils gawk
 RUN dnf -y install gcc binutils redhat-rpm-config hmaccalc bison flex gcc-c++
@@ -15,7 +22,7 @@ RUN dnf -y install rsync
 RUN dnf -y install glibc-static
 RUN dnf -y install libbpf-devel
 RUN dnf -y install libnl3-devel
-RUN dnf -y install openssl openssl-devel
+RUN dnf -y install openssl openssl-devel openssl-devel-engine
 RUN dnf -y install lld
 RUN dnf -y install rpm-build
 RUN dnf -y install cpio xz
