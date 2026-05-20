@@ -41,5 +41,5 @@ fi
 sudo docker run -it --rm --network=host \
     -v $PWD:/kernel \
     -v ~/.ccache:/root/.ccache \
-    kernel-build-toolchain \
+    kernel-build-toolchain:${FEDORA_VERSION} \
     bash -i -c "cd /kernel && kmake $1 && echo '>>> SUCCESS <<<'"
