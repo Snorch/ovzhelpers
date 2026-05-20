@@ -38,4 +38,8 @@ if [ ! -e ~/.ccache ]; then
     echo ">>> Created ccache directory at ~/.ccache <<<"
 fi
 
-sudo docker run -it --rm --network=host -v $PWD:/kernel -v ~/.ccache:/root/.ccache kernel-build-toolchain bash -i -c "cd /kernel && kmake $1 && echo '>>> SUCCESS <<<'"
+sudo docker run -it --rm --network=host \
+    -v $PWD:/kernel \
+    -v ~/.ccache:/root/.ccache \
+    kernel-build-toolchain \
+    bash -i -c "cd /kernel && kmake $1 && echo '>>> SUCCESS <<<'"
