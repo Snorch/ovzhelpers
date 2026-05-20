@@ -1,6 +1,26 @@
 #!/bin/bash
 
 FEDORA_VERSION="latest"
+DNF_DEPS=""
+
+DNF_DEPS+="kmod bash coreutils tar git which "
+DNF_DEPS+="bzip2 xz findutils gzip m4 perl make diffutils gawk "
+DNF_DEPS+="gcc binutils redhat-rpm-config hmaccalc bison flex gcc-c++ "
+DNF_DEPS+="net-tools hostname bc "
+DNF_DEPS+="elfutils elfutils-devel "
+DNF_DEPS+="dwarves "
+DNF_DEPS+="python3-devel "
+DNF_DEPS+="gcc-plugin-devel "
+DNF_DEPS+="kernel-rpm-macros "
+DNF_DEPS+="rsync "
+DNF_DEPS+="glibc-static "
+DNF_DEPS+="libbpf-devel "
+DNF_DEPS+="libnl3-devel "
+DNF_DEPS+="openssl openssl-devel openssl-devel-engine "
+DNF_DEPS+="lld "
+DNF_DEPS+="rpm-build "
+DNF_DEPS+="cpio xz "
+DNF_DEPS+="ccache "
 
 KERNEL_VERSION="$(make -s kernelversion | cut -d- -f1)"
 if [ "$(printf '%s\n5.14.0\n' "$KERNEL_VERSION" | sort -V | head -n1)" = "$KERNEL_VERSION" ]; then
@@ -9,24 +29,7 @@ fi
 
 sudo docker build -t kernel-build-toolchain:${FEDORA_VERSION} - <<EOF
 FROM fedora:${FEDORA_VERSION}
-RUN dnf -y install kmod bash coreutils tar git which
-RUN dnf -y install bzip2 xz findutils gzip m4 perl make diffutils gawk
-RUN dnf -y install gcc binutils redhat-rpm-config hmaccalc bison flex gcc-c++
-RUN dnf -y install net-tools hostname bc
-RUN dnf -y install elfutils elfutils-devel
-RUN dnf -y install dwarves
-RUN dnf -y install python3-devel
-RUN dnf -y install gcc-plugin-devel
-RUN dnf -y install kernel-rpm-macros
-RUN dnf -y install rsync
-RUN dnf -y install glibc-static
-RUN dnf -y install libbpf-devel
-RUN dnf -y install libnl3-devel
-RUN dnf -y install openssl openssl-devel openssl-devel-engine
-RUN dnf -y install lld
-RUN dnf -y install rpm-build
-RUN dnf -y install cpio xz
-RUN dnf -y install ccache
+RUN dnf -y install $DNF_DEPS
 RUN yum clean all
 RUN git clone https://github.com/Snorch/ovzhelpers.git && cd ovzhelpers && ./install.sh
 RUN echo "PATH=\"/root/bin:/usr/lib64/ccache:\$PATH\"" >> /root/.bashrc
