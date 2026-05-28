@@ -16,3 +16,6 @@ cp rh-conf ~/bin
 cp rpmbuild-vz9 ~/bin
 cp build-in-docker ~/bin
 cp build-kernel ~/bin
+
+mkdir -p ~/.claude/skills/kernel-docker-build/
+cp claude-kernel-docker-build-SKILL.md ~/.claude/skills/kernel-docker-build/SKILL.md
