@@ -22,6 +22,38 @@ DNF_DEPS+="rpm-build "
 DNF_DEPS+="cpio xz "
 DNF_DEPS+="ccache "
 
+usage() {
+    cat >&2 <<'USAGE'
+Usage:
+  build-kernel [kmake-suffix]    Run 'kmake [suffix]' in the build container
+  build-kernel -c "command"      Run a custom command in the build container
+  build-kernel < script.sh       Read commands to run from stdin
+  build-kernel <<'EOF'           Read commands from a heredoc
+    cmd1
+    cmd2
+  EOF
+
+Options:
+  -c CMD   Run CMD inside the build container instead of kmake
+  -h       Show this help
+USAGE
+}
+
+CUSTOM_CMD=""
+while getopts "c:h" opt; do
+    case "$opt" in
+        c) CUSTOM_CMD="$OPTARG" ;;
+        h) usage; exit 0 ;;
+        *) usage; exit 1 ;;
+    esac
+done
+shift $((OPTIND - 1))
+
+if [ -n "$CUSTOM_CMD" ] && [ "$#" -gt 0 ]; then
+    echo "build-kernel: -c cannot be combined with positional arguments" >&2
+    exit 1
+fi
+
 KERNEL_VERSION="$(make -s kernelversion | cut -d- -f1)"
 if [ "$(printf '%s\n5.14.0\n' "$KERNEL_VERSION" | sort -V | head -n1)" = "$KERNEL_VERSION" ]; then
 	FEDORA_VERSION="41"
@@ -41,8 +73,36 @@ if [ ! -e ~/.ccache ]; then
     echo ">>> Created ccache directory at ~/.ccache <<<"
 fi
 
-sudo docker run -it --rm --network=host \
-    -v $PWD:/kernel \
-    -v ~/.ccache:/root/.ccache \
-    kernel-build-toolchain:${FEDORA_VERSION} \
-    bash -i -c "cd /kernel && kmake $1 && echo '>>> SUCCESS <<<'"
+# Pick the command to run inside the container:
+#   -c CMD    -> run CMD
+#   stdin     -> run whatever was piped/heredoc'd in
+#   otherwise -> default kmake invocation (interactive)
+if [ -n "$CUSTOM_CMD" ]; then
+    BUILD_CMD="$CUSTOM_CMD"
+    HAVE_BUILD_CMD=1
+elif [ ! -t 0 ]; then
+    BUILD_CMD="$(cat)"
+    HAVE_BUILD_CMD=1
+else
+    HAVE_BUILD_CMD=0
+fi
+
+if [ "$HAVE_BUILD_CMD" = "1" ]; then
+    {
+        echo 'set -e'
+        echo 'export PATH="/root/bin:/usr/lib64/ccache:$PATH"'
+        echo 'cd /kernel'
+        printf '%s\n' "$BUILD_CMD"
+        echo 'echo ">>> SUCCESS <<<"'
+    } | sudo docker run -i --rm --network=host \
+        -v $PWD:/kernel \
+        -v ~/.ccache:/root/.ccache \
+        kernel-build-toolchain:${FEDORA_VERSION} \
+        bash
+else
+    sudo docker run -it --rm --network=host \
+        -v $PWD:/kernel \
+        -v ~/.ccache:/root/.ccache \
+        kernel-build-toolchain:${FEDORA_VERSION} \
+        bash -i -c "cd /kernel && kmake $1 && echo '>>> SUCCESS <<<'"
+fi
