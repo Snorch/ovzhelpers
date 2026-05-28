@@ -55,7 +55,7 @@ if [ -n "$CUSTOM_CMD" ] && [ "$#" -gt 0 ]; then
 fi
 
 KERNEL_VERSION="$(make -s kernelversion | cut -d- -f1)"
-if [ "$(printf '%s\n5.14.0\n' "$KERNEL_VERSION" | sort -V | head -n1)" = "$KERNEL_VERSION" ]; then
+if [ "$(printf '%s\n6.12.0\n' "$KERNEL_VERSION" | sort -V | head -n1)" = "$KERNEL_VERSION" ]; then
 	FEDORA_VERSION="41"
 fi
 
