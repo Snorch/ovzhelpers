@@ -35,14 +35,16 @@ Usage:
 
 Options:
   -c CMD   Run CMD inside the build container instead of kmake
+  -v VER   Specify docker image version for Fedora
   -h       Show this help
 USAGE
 }
 
 CUSTOM_CMD=""
-while getopts "c:h" opt; do
+while getopts "v:c:h" opt; do
     case "$opt" in
         c) CUSTOM_CMD="$OPTARG" ;;
+        v) FEDORA_VERSION="$OPTARG" ;;
         h) usage; exit 0 ;;
         *) usage; exit 1 ;;
     esac
