@@ -1,6 +1,6 @@
 #!/bin/bash
 
-FEDORA_VERSION="latest"
+FEDORA_VERSION="41"
 DNF_DEPS=""
 
 DNF_DEPS+="kmod bash coreutils tar git which "
@@ -52,11 +52,6 @@ shift $((OPTIND - 1))
 if [ -n "$CUSTOM_CMD" ] && [ "$#" -gt 0 ]; then
     echo "build-kernel: -c cannot be combined with positional arguments" >&2
     exit 1
-fi
-
-KERNEL_VERSION="$(make -s kernelversion | cut -d- -f1)"
-if [ "$(printf '%s\n6.12.0\n' "$KERNEL_VERSION" | sort -V | head -n1)" = "$KERNEL_VERSION" ]; then
-	FEDORA_VERSION="41"
 fi
 
 SUDO="sudo"
