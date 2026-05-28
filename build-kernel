@@ -59,7 +59,12 @@ if [ "$(printf '%s\n5.14.0\n' "$KERNEL_VERSION" | sort -V | head -n1)" = "$KERNE
 	FEDORA_VERSION="41"
 fi
 
-sudo docker build -t kernel-build-toolchain:${FEDORA_VERSION} - <<EOF
+SUDO="sudo"
+if [ "$(id -u)" -eq 0 ] || id -nG | tr ' ' '\n' | grep -qx docker; then
+    SUDO=""
+fi
+
+$SUDO docker build -t kernel-build-toolchain:${FEDORA_VERSION} - <<EOF
 FROM fedora:${FEDORA_VERSION}
 RUN dnf -y install $DNF_DEPS
 RUN yum clean all
@@ -94,13 +99,13 @@ if [ "$HAVE_BUILD_CMD" = "1" ]; then
         echo 'cd /kernel'
         printf '%s\n' "$BUILD_CMD"
         echo 'echo ">>> SUCCESS <<<"'
-    } | sudo docker run -i --rm --network=host \
+    } | $SUDO docker run -i --rm --network=host \
         -v $PWD:/kernel \
         -v ~/.ccache:/root/.ccache \
         kernel-build-toolchain:${FEDORA_VERSION} \
         bash
 else
-    sudo docker run -it --rm --network=host \
+    $SUDO docker run -it --rm --network=host \
         -v $PWD:/kernel \
         -v ~/.ccache:/root/.ccache \
         kernel-build-toolchain:${FEDORA_VERSION} \
