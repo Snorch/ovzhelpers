@@ -1,0 +1,211 @@
+#!/bin/bash
+# crash-remote - persistent remote crash session for Claude Code
+# Usage:
+#   crash-remote start <host> <vmlinux> <vmcore>
+#   crash-remote cmd <command...>
+#   crash-remote stop
+#
+# Environment (set by 'start', reused by 'cmd'/'stop'):
+#   State persisted in /tmp/crash-remote.env
+
+STATE_FILE="/tmp/crash-remote.env"
+REMOTE_DIR="/tmp/crash-session"
+
+die() { echo "ERROR: $*" >&2; exit 1; }
+
+load_state() {
+    [ -f "$STATE_FILE" ] || die "No active session. Run: crash-remote start <host> <vmlinux> <vmcore>"
+    source "$STATE_FILE"
+}
+
+save_state() {
+    cat > "$STATE_FILE" <<EOF
+REMOTE_HOST="$REMOTE_HOST"
+SSH_CTRL="$SSH_CTRL"
+EOF
+}
+
+_ssh() { ssh -o ControlPath="$SSH_CTRL" -o ConnectTimeout=10 "$REMOTE_HOST" "$@"; }
+
+ensure_ssh() {
+    if ! ssh -o ControlPath="$SSH_CTRL" -O check "$REMOTE_HOST" 2>/dev/null; then
+        echo "Establishing SSH connection to $REMOTE_HOST..."
+        ssh -o ControlPath="$SSH_CTRL" -M -fN \
+            -o ControlPersist=14400 \
+            -o ServerAliveInterval=60 \
+            -o ServerAliveCountMax=10 \
+            "$REMOTE_HOST" || die "SSH connection failed"
+    fi
+}
+
+cmd_start() {
+    local host="$1" vmlinux="$2" vmcore="$3"
+    [ -n "$host" ] && [ -n "$vmlinux" ] && [ -n "$vmcore" ] || \
+        die "Usage: crash-remote start <host> <vmlinux> <vmcore>"
+
+    REMOTE_HOST="$host"
+    SSH_CTRL="/tmp/crash-ssh-ctrl-$(echo "$host" | tr '@:/' '_')"
+
+    ensure_ssh
+
+    # Verify files exist on remote
+    _ssh "test -f '$vmlinux'" || die "vmlinux not found: $vmlinux"
+    _ssh "test -f '$vmcore'"  || die "vmcore not found: $vmcore"
+
+    # Clean up any previous session
+    _ssh "
+        if [ -d $REMOTE_DIR ]; then
+            kill \$(cat $REMOTE_DIR/keeper.pid 2>/dev/null) 2>/dev/null
+            kill \$(cat $REMOTE_DIR/crash.pid 2>/dev/null) 2>/dev/null
+            rm -rf $REMOTE_DIR
+        fi
+        mkdir -p $REMOTE_DIR
+        mkfifo $REMOTE_DIR/fifo
+    " || die "Failed to set up remote session directory"
+
+    # Start crash with FIFO input, output logged to file
+    # sleep infinity keeps the FIFO write-end open so crash doesn't get EOF
+    _ssh "
+        nohup bash -c '
+            sleep infinity > $REMOTE_DIR/fifo &
+            echo \$! > $REMOTE_DIR/keeper.pid
+            crash '$vmlinux' '$vmcore' < $REMOTE_DIR/fifo > $REMOTE_DIR/output.log 2>&1 &
+            echo \$! > $REMOTE_DIR/crash.pid
+        ' > /dev/null 2>&1
+    " || die "Failed to start crash"
+
+    save_state
+
+    # Wait for crash to initialize (look for first prompt)
+    echo "Waiting for crash to initialize (this may take a while)..."
+    local waited=0
+    while [ $waited -lt 600 ]; do
+        if _ssh "grep -q '^crash>' $REMOTE_DIR/output.log 2>/dev/null"; then
+            echo "crash session ready."
+            echo "---"
+            _ssh "cat $REMOTE_DIR/output.log"
+            return 0
+        fi
+        sleep 2
+        waited=$((waited + 2))
+        # Show progress every 30s
+        if [ $((waited % 30)) -eq 0 ]; then
+            echo "  ...still waiting (${waited}s)..."
+        fi
+    done
+    die "Timeout (${waited}s) waiting for crash to start"
+}
+
+crash_alive() {
+    _ssh "kill -0 \$(cat $REMOTE_DIR/crash.pid 2>/dev/null) 2>/dev/null"
+}
+
+cmd_exec() {
+    [ $# -gt 0 ] || die "Usage: crash-remote cmd <command>"
+    load_state
+    ensure_ssh
+
+    local cmd="$*"
+
+    # Verify crash is still running
+    crash_alive || die "crash process is not running"
+
+    # Unique sentinel so we know exactly when the command finished. Relying on
+    # the bare 'crash>' prompt is unreliable: it can appear inside a command's
+    # own output and its exact spacing varies. We append a '!echo <marker>'
+    # shell escape after the command; crash runs it only after the real command
+    # completes, so the marker reliably delimits the end of the output.
+    local marker="__CRASH_REMOTE_DONE_${$}_$(date +%s%N)__"
+
+    # Record output size before command
+    local before
+    before=$(_ssh "wc -c < $REMOTE_DIR/output.log" | tr -d '[:space:]')
+
+    # Send the command followed by the marker via the FIFO
+    { printf '%s\n' "$cmd"; printf '!echo %s\n' "$marker"; } | \
+        _ssh "cat > $REMOTE_DIR/fifo"
+
+    # Wait for the marker to appear in the new output
+    local waited=0
+    while [ $waited -lt 300 ]; do
+        local new_output
+        new_output=$(_ssh "tail -c +$((before + 1)) $REMOTE_DIR/output.log 2>/dev/null")
+        if printf '%s' "$new_output" | grep -qF "$marker"; then
+            # Print everything up to (but not including) the marker line. That
+            # line carries crash's trailing 'crash> ' prompt, so it is dropped.
+            printf '%s\n' "$new_output" | awk -v m="$marker" 'index($0, m) {exit} {print}'
+            return 0
+        fi
+        if ! crash_alive; then
+            printf '%s' "$new_output"
+            die "crash process exited while running: $cmd"
+        fi
+        sleep 1
+        waited=$((waited + 1))
+        if [ $((waited % 30)) -eq 0 ]; then
+            echo "  ...waiting for output (${waited}s)..." >&2
+        fi
+    done
+
+    # Timeout - dump what we have
+    _ssh "tail -c +$((before + 1)) $REMOTE_DIR/output.log 2>/dev/null"
+    echo "[TIMEOUT after ${waited}s - output may be incomplete]" >&2
+    return 1
+}
+
+cmd_stop() {
+    load_state
+    ensure_ssh
+    _ssh "
+        kill \$(cat $REMOTE_DIR/keeper.pid 2>/dev/null) 2>/dev/null
+        kill \$(cat $REMOTE_DIR/crash.pid 2>/dev/null) 2>/dev/null
+        rm -rf $REMOTE_DIR
+    " 2>/dev/null
+    ssh -o ControlPath="$SSH_CTRL" -O exit "$REMOTE_HOST" 2>/dev/null
+    rm -f "$STATE_FILE"
+    echo "Session stopped."
+}
+
+cmd_status() {
+    load_state
+    ensure_ssh
+    if crash_alive; then
+        echo "crash is running on $REMOTE_HOST"
+    else
+        echo "crash is NOT running on $REMOTE_HOST"
+    fi
+}
+
+cmd_log() {
+    load_state
+    ensure_ssh
+    local lines="${1:-50}"
+    _ssh "tail -$lines $REMOTE_DIR/output.log"
+}
+
+case "${1:-help}" in
+    start)  shift; cmd_start "$@" ;;
+    cmd)    shift; cmd_exec "$@" ;;
+    exec)   shift; cmd_exec "$@" ;;
+    stop)   cmd_stop ;;
+    status) cmd_status ;;
+    log)    shift; cmd_log "$@" ;;
+    help|*) cat <<'USAGE'
+crash-remote - persistent remote crash session
+
+Commands:
+  start <host> <vmlinux> <vmcore>  Start crash session on remote host
+  cmd <crash-command>              Execute a crash command
+  stop                             Terminate session and clean up
+  status                           Check if crash is running
+  log [N]                          Show last N lines of output (default 50)
+
+Examples:
+  crash-remote start root@server /usr/lib/debug/vmlinux /var/crash/vmcore
+  crash-remote cmd bt
+  crash-remote cmd "ps | grep UN"
+  crash-remote cmd "struct task_struct.comm,pid ffff8800deadbeef"
+  crash-remote stop
+USAGE
+    ;;
+esac
