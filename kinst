@@ -41,6 +41,9 @@ mount $REMKERNPATH $LOCKERNPATH
 # So we do overlayfs trick here to make kernel directory appear writable as
 # make modules_install install would need to write into it.
 echo "Mounting overlay to $LOCKERNPATH-overlay"
+# Cleanup overlay directories, garbage from upper/work can lead to incorrect or
+# older version of files be shown and thus lead to inconsistent kernel install.
+rm -rf $LOCKERNPATH-{upper,work,overlay} || { echo "Can't remove leftover $LOCKERNPATH-{upper,work,overlay}"; exit 1; }
 mkdir $LOCKERNPATH-{upper,work,overlay}
 mount -t overlay overlay -olowerdir=$LOCKERNPATH,upperdir=$LOCKERNPATH-upper,workdir=$LOCKERNPATH-work $LOCKERNPATH-overlay
 cd $LOCKERNPATH-overlay
